@@ -27,8 +27,7 @@ abstract class Mongo_Queue
 		}
 		else
 		{	
-			$db = self::getDatabase(array('object_class' => $className, 'object_method' => $methodName, 'parameters' => $parameters));
-			$collection = $db->selectCollection(self::$collectionName);
+			$db = $task->db();
 			
 			$job = $db->command(
 				array(
@@ -113,7 +112,7 @@ abstract class Mongo_Queue
 					foreach (self::$context as $key => $value)
 					{
 						if (property_exists($className, $key))
-							$className::$key = $value;
+							$className::${$key} = $value;
 					}
 				}
 				
@@ -129,6 +128,7 @@ abstract class Mongo_Queue
 		return false;
 	}
 
+	/*
 	private static function getConnection($hint = null)
 	{
 		if (is_array(self::$connection))
@@ -183,7 +183,8 @@ abstract class Mongo_Queue
 
 		return $connection->selectCollection(self::$database, $collection_name);
 	}
-
+	*/
+	
 	/*
 	protected static function initializeEnvironment()
 	{
