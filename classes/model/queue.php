@@ -1,6 +1,6 @@
 <?php 
 
-class Model_Auth extends Mongo_Document 
+class Model_Queue extends Mongo_Document 
 {
 	protected $name = 'queue';
 	protected $db = 'default';

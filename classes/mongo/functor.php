@@ -16,4 +16,3 @@ class Mongo_Functor
 		Mongo_Queue::push($this->className, $method, $args, $this->when, $this->batch);
 	}
 }
-

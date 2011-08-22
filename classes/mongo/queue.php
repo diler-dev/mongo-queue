@@ -2,13 +2,8 @@
 
 abstract class Mongo_Queue
 {
-	public static $database = null;
-	public static $connection = null;
-	public static $environment = null;
 	public static $context = null;
-	public static $collectionName = 'mongo_queue';
-
-	protected static $environmentLoaded = false;
+	public static $collectionName = 'queue';
 
 	public static function push($className, $methodName, $parameters, $when, $batch = false)
 	{
@@ -45,7 +40,8 @@ abstract class Mongo_Queue
 				if (!isset($job['when']) || $job['when'] > $when)
 				{
 					$job['when'] = $when;
-					$collection->save($job);
+					$task->load_values($job, true);
+					$task->save();
 				}
 			}
 		}
@@ -53,7 +49,7 @@ abstract class Mongo_Queue
 
 	public static function hasRunnable($class_name = null, $method_name = null)
 	{
-		$collection = self::getCollection();
+		$model = new Model_Queue();
 		
 		$query = array('when' => array('$lte' => time()), 'locked' => null);
 	
@@ -63,21 +59,23 @@ abstract class Mongo_Queue
 		if ($method_name)
 			$query['object_method'] = $method_name;
 	
-		return ($collection->findOne($query) != null);
+		return ($model->load($query) != null);
 	}
 
 	public static function count()
 	{
-		$collction = self::getCollection();
-
+		$model = new Model_Queue();
+		$collection = $model->collection();
+		
 		$query = array('when' => array('$lte' => time()), 'locked' => null);
+		
 		return $collection->count($query);
 	}
 
 	public static function run($class_name = null, $method_name = null)
 	{
-		$db = self::getDatabase();
-		$environment = self::initializeEnvironment();
+		$model = new Model_Queue();
+		$db = $model->db();
 
 		$query = array('when' => array('$lte' => time()), 'locked' => null);
 	
@@ -111,8 +109,10 @@ abstract class Mongo_Queue
 				{
 					foreach (self::$context as $key => $value)
 					{
-						if (property_exists($className, $key))
-							$className::${$key} = $value;
+						if (property_exists($className, $key)){
+							$SomeStaticProperty = new ReflectionProperty($className, $key);
+							$SomeStaticProperty->setValue($value);
+						}
 					}
 				}
 				
@@ -120,87 +120,11 @@ abstract class Mongo_Queue
 			}
 
 			// remove the job from the queue
-			$db->selectCollection(self::$collectionName)->remove(array('_id' => $jobID));
+			$model->collection()->remove(array('_id' => $jobID));
 
 			return true;
 		}
 
 		return false;
 	}
-
-	/*
-	private static function getConnection($hint = null)
-	{
-		if (is_array(self::$connection))
-		{
-			$count = count(self::$connection);
-	
-			if (!$hint)
-				$hint = md5(rand());
-			
-			// convert the hint into an index
-			$hint = abs(crc32(serialize($hint)) % $count);
-			
-			return self::$connection[$hint];
-		}
-		else
-		{
-			return self::$connection;
-		}
-	}
-
-	private static function getDatabase($hint = null)
-	{
-		$collection_name = self::$collectionName;
-		$connection = self::getConnection($hint);
-
-		if (self::$database == null)
-			throw new Exception("BaseMongoRecord::database must be initialized to a proper database string");
-
-		if ($connection == null)
-			throw new Exception("BaseMongoRecord::connection must be initialized to a valid Mongo object");
-		
-		if (!$connection->connected)
-			$connection->connect();
-
-		return $connection->selectDB(self::$database);
-	}
-	
-	private static function getCollection($hint = null)
-	{
-		$collection_name = self::$collectionName;
-		$connection = self::getConnection($hint);
-
-		if (self::$database == null)
-			throw new Exception("BaseMongoRecord::database must be initialized to a proper database string");
-
-		if ($connection == null)
-			throw new Exception("BaseMongoRecord::connection must be initialized to a valid Mongo object");
-		
-		
-		if (!$connection->connected)
-			$connection->connect();
-
-		return $connection->selectCollection(self::$database, $collection_name);
-	}
-	*/
-	
-	/*
-	protected static function initializeEnvironment()
-	{
-		if (self::$environment && !self::$environmentLoaded)
-		{
-			$environment = self::$environment;
-			
-			spl_autoload_register(
-				function ($className) use ($environment) 
-				{
-					require_once($environment . '/' . $className . '.php');
-				}
-			);
-
-			self::$environmentLoaded = true;
-		}
-	}
-	*/
 }
