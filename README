@@ -1,0 +1,78 @@
+h1. Mongo-Queue
+
+MongoQueue is a Kohana queue that allows for moving tasks and jobs into an asynchronous process for completion in the background. The queue is managed by MongoDB and MongoDb PHP ODM
+
+This Kohana module is using code from https://github.com/lunaru/MongoQueue. TNX lunaru!
+
+h2. Requirements
+
+* Kohana 3+
+* mongod 1.5.4+
+* PHP 5.3+
+* Mongo PECL (PHP mongo driver)
+* MongoDb PHP ODM / http://github.com/colinmollenhour/mongodb-php-odm
+
+h2. Installation
+
+Extract the source files into a modules directory in your Kohana installation.
+
+h3. Usage
+
+<pre>
+class Controller_Queue extends Controller
+{
+  public function action_index()
+	{
+		Mongo_Queue::push('Queue_Task', 'trace', array(), time());
+		
+		if (Mongo_Queue::run())
+			echo("Found a job to run");
+		else
+			echo("Nothing to run");
+     
+	}
+}
+</pre>
+
+Jobs are PHP objects that extend from @Mongo_Job@. Object states are not serialized so jobs must be defined as @public static function@.
+
+<pre>
+class Queue_Task extends Mongo_Job
+{
+  public static $context;
+  
+	public static function trace()
+	{
+		echo "Tracer hit\n";
+	}
+}
+</pre>
+
+You can also take advantage of @Mongo_Job@'s built in @later()@ method which automatically delays a method for asynchronous running:
+
+<pre>Queue_Tracer::later(500)->trace();</pre>
+
+You can also batch calls which have the same parameter so that they'll only be run once by workers. The run time will be decided by the first job inserted and the subsequent jobs will not have their run times obeyed.
+
+<pre>Queue_Tracer::batchLater(500)->trace();</pre>
+
+h3. Running the jobs
+
+Jobs are run via @Mongo_Queue::run()@. Mongo_Queue currently does not include a daemon runner (coming soon).
+
+h3. Administration
+
+h4. Indexing/Performance
+
+You'll want to add indices to Mongo_Queue to ensure high performance. You'll need at least the following index for basic operation:
+
+<pre>
+db.queue.ensureIndex({locked: 1, when: 1});
+</pre>
+
+If you plan to use the batching feature you want an index on the type of jobs already in the queue:
+
+<pre>
+ db.queue.ensureIndex({object_class: 1, object_method: 1, parameters: 1, locked: 1}); 
+</pre>
+
