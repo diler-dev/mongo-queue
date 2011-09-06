@@ -71,20 +71,20 @@ abstract class Mongo_Queue
 		
 		return $collection->count($query);
 	}
-
-	public static function run($class_name = null, $method_name = null)
+	
+	public static function getNextTask($class_name, $method_name)
 	{
 		$model = new Model_Queue();
 		$db = $model->db();
-
+		
 		$query = array('when' => array('$lte' => time()), 'locked' => null);
-	
+		
 		if ($class_name)
 			$query['object_class'] = $class_name;
-	
+		
 		if ($method_name)
 			$query['object_method'] = $method_name;
-	
+		
 		$job = $db->command(
 			array(
 				"findandmodify" => self::$collectionName,
@@ -95,7 +95,18 @@ abstract class Mongo_Queue
 		
 		if ($job['ok'])
 		{
-			$jobRecord = $job['value'];
+			return $job['value'];
+		}
+		
+		return false;
+	}
+
+	public static function run($jobRecord = FALSE)
+	{
+		if ($jobRecord)
+		{
+			$model = new Model_Queue();
+			
 			$jobID = $jobRecord['_id'];
 
 			// run the job
@@ -126,5 +137,38 @@ abstract class Mongo_Queue
 		}
 
 		return false;
+	}
+	
+	/**
+	* Check the table for running tasks and verify that the tasks are indeed running.
+	* If not running then clear the task PID.
+	*/
+	public static function checkRunningTasks()
+	{
+		$db = new Model_Queue();
+	
+		// Grab the tasks that are running
+		$tasks = $db->collection()->find(array('pid' => array('$ne' => 0)));
+
+		if($tasks->hasNext())
+		{
+			// Loop all the tasks
+			foreach($tasks AS $task)
+			{
+				// Task PID is set but it is not running any longer
+				if(!Daemon::ProcessIsRunning($task->pid))
+				{
+					// Reset the pid
+					$task->pid = 0;
+			
+					// Save the tow
+					$task->save();
+				}
+			}
+		}
+		
+		unset($db, $tasks, $task);
+	
+		return TRUE;
 	}
 }
